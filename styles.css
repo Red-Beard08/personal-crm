@@ -29,8 +29,10 @@
 .personal-crm-contact-table th, .personal-crm-contact-table td { padding: 11px 13px; border-bottom: 1px solid var(--background-modifier-border); text-align: left; vertical-align: middle; }
 .personal-crm-contact-table thead th { background: var(--background-primary-alt); color: var(--text-muted); font-size: var(--font-ui-small); font-weight: var(--font-semibold); }
 .personal-crm-contact-table tbody tr:hover { background: var(--background-modifier-hover); }
-.personal-crm-sort-button { border: 0; padding: 0; background: transparent; color: inherit; font-weight: inherit; cursor: pointer; }
+.personal-crm-sort-button { appearance: none; -webkit-appearance: none; border: 1px solid transparent !important; border-radius: 7px; padding: 6px 10px !important; background: transparent !important; box-shadow: none !important; color: inherit; font-weight: inherit; line-height: 1.25; cursor: pointer; }
+.personal-crm-sort-button:hover, .personal-crm-sort-button:focus-visible { border-color: var(--background-modifier-border) !important; background: var(--background-modifier-hover) !important; }
 .personal-crm-contact-table input { width: 100%; min-width: 95px; font-size: var(--font-ui-smaller); }
-.personal-crm-table-link { border: 0; padding: 0; background: transparent; color: var(--text-accent); font-weight: var(--font-semibold); cursor: pointer; text-align: left; }
+.personal-crm-table-link { appearance: none; -webkit-appearance: none; display: inline-flex; align-items: center; min-height: 30px; max-width: 100%; border: 1px solid transparent !important; border-radius: 7px; padding: 5px 9px !important; background: transparent !important; box-shadow: none !important; color: var(--text-accent); font-weight: var(--font-semibold); line-height: 1.3; white-space: normal; overflow-wrap: anywhere; cursor: pointer; text-align: left; }
+.personal-crm-table-link:hover, .personal-crm-table-link:focus-visible { border-color: var(--background-modifier-border) !important; background: var(--background-modifier-hover) !important; }
 .personal-crm-modal .modal-content { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
 @media (max-width: 700px) { .personal-crm-dashboard { padding: 14px; } .personal-crm-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .personal-crm-hero h1 { font-size: 2.2rem; } .personal-crm-contact-grid { grid-template-columns: 1fr; } .personal-crm-section { padding: 18px; margin-bottom: 20px; } }
