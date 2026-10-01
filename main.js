@@ -657,14 +657,6 @@ var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
         new import_obsidian7.Notice("No iCloud address books were discovered.");
         return;
       }
-      if (books.length === 1) {
-        this.settings.carddavAddressBookUrl = books[0].href;
-        this.settings.carddavAddressBookLabel = books[0].label;
-        this.settings.selectedAddressBookUrls = [books[0].href];
-        await this.saveSettings();
-        new import_obsidian7.Notice(`Discovered and selected ${books[0].label}.`);
-        return;
-      }
       new AddressBookPickerModal(this.app, this, books).open();
     } catch (error) {
       new import_obsidian7.Notice(`Address-book discovery failed: ${error instanceof Error ? error.message : String(error)}`);
