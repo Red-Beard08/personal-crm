@@ -27,6 +27,9 @@ var import_obsidian7 = require("obsidian");
 
 // src/carddav.ts
 var import_obsidian = require("obsidian");
+function xmlDecode(value) {
+  return value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&").trim();
+}
 function unescape(value) {
   return value.replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\").trim();
 }
@@ -38,6 +41,22 @@ function unfold(input) {
     else out.push(line);
   }
   return out;
+}
+function firstTag(input, localName) {
+  const escaped = localName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = input.match(new RegExp(`<[^>]*:?${escaped}[^>]*>([\\s\\S]*?)<\\/[^>]*:?${escaped}\\s*>`, "i"));
+  return (match == null ? void 0 : match[1]) ? xmlDecode(match[1]) : "";
+}
+function responseChunks(xml) {
+  var _a;
+  return (_a = xml.match(/<[^>]*:?response(?:\s[^>]*)?>[\s\S]*?<\/[^>]*:?response\s*>/gi)) != null ? _a : [];
+}
+function absoluteHref(href, baseUrl) {
+  try {
+    return new URL(href, baseUrl).toString();
+  } catch (e) {
+    return href;
+  }
 }
 function parseVCard(input) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
@@ -54,34 +73,53 @@ function parseVCard(input) {
   return { uid: (_g = (_f = fields.get("UID")) == null ? void 0 : _f[0]) != null ? _g : "", displayName, givenName: (_h = name[1]) != null ? _h : "", familyName: (_i = name[0]) != null ? _i : "", emails: (_j = fields.get("EMAIL")) != null ? _j : [], phones: [...(_k = fields.get("TEL")) != null ? _k : []], organization: (_m = (_l = fields.get("ORG")) == null ? void 0 : _l[0]) != null ? _m : "", addresses: (_n = fields.get("ADR")) != null ? _n : [], websites: (_o = fields.get("URL")) != null ? _o : [], birthday: (_q = (_p = fields.get("BDAY")) == null ? void 0 : _p[0]) != null ? _q : "", notes: (_s = (_r = fields.get("NOTE")) == null ? void 0 : _r.join("\n")) != null ? _s : "" };
 }
 function parseAddressBooks(xml, baseUrl) {
-  var _a, _b, _c, _d, _e, _f;
   const result = [];
-  const response = (_a = xml.match(/<[^>]*response[\s\S]*?<\/[^>]*response>/gi)) != null ? _a : [];
-  for (const chunk of response) {
-    const href = (_c = (_b = chunk.match(/<[^>]*href[^>]*>([\s\S]*?)<\//i)) == null ? void 0 : _b[1]) == null ? void 0 : _c.trim();
+  for (const chunk of responseChunks(xml)) {
+    const href = firstTag(chunk, "href");
     if (!href) continue;
-    const label = (_f = (_e = (_d = chunk.match(/<[^>]*(?:displayname|addressbook-description)[^>]*>([\s\S]*?)<\//i)) == null ? void 0 : _d[1]) == null ? void 0 : _e.replace(/<[^>]+>/g, "").trim()) != null ? _f : href;
-    result.push({ href: new URL(href, baseUrl).toString(), label });
+    const resourceType = firstTag(chunk, "resourcetype").toLowerCase();
+    if (resourceType && !resourceType.includes("addressbook")) continue;
+    const label = firstTag(chunk, "displayname") || firstTag(chunk, "addressbook-description") || href;
+    result.push({ href: absoluteHref(href, baseUrl), label });
   }
   return [...new Map(result.map((item) => [item.href, item])).values()];
 }
+async function propfind(url, settings, body, depth) {
+  const response = await (0, import_obsidian.requestUrl)({ url, method: "PROPFIND", headers: { ...authHeaders(settings), Depth: depth, "Content-Type": "application/xml; charset=utf-8", Accept: "application/xml, text/xml" }, body });
+  return response.text;
+}
+var PRINCIPAL_PROPFIND = `<?xml version="1.0" encoding="UTF-8"?><d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><d:current-user-principal/><cs:addressbook-home-set/><d:resourcetype/><d:displayname/></d:prop></d:propfind>`;
+var HOME_PROPFIND = `<?xml version="1.0" encoding="UTF-8"?><d:propfind xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><d:displayname/><d:resourcetype/></d:prop></d:propfind>`;
 async function discoverAddressBooks(settings) {
-  if (!settings.carddavUrl.trim()) throw new Error("Enter the iCloud CardDAV discovery URL first.");
-  const response = await (0, import_obsidian.requestUrl)({ url: settings.carddavUrl, method: "REPORT", headers: authHeaders(settings), body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop><d:displayname/><d:resourcetype/></d:prop></d:propfind>' });
-  return parseAddressBooks(response.text, settings.carddavUrl);
+  var _a, _b;
+  const base = settings.carddavUrl.trim();
+  if (!base) throw new Error("Enter the iCloud CardDAV discovery URL first.");
+  const root = new URL(base).toString();
+  const rootXml = await propfind(root, settings, PRINCIPAL_PROPFIND, "0");
+  const rootChunk = (_a = responseChunks(rootXml)[0]) != null ? _a : rootXml;
+  const principal = firstTag(firstTag(rootChunk, "current-user-principal"), "href");
+  const principalUrl = absoluteHref(principal || settings.carddavPrincipalUrl, root);
+  if (!principalUrl) throw new Error("iCloud did not return a CardDAV principal URL.");
+  const principalXml = await propfind(principalUrl, settings, PRINCIPAL_PROPFIND, "0");
+  const principalChunk = (_b = responseChunks(principalXml)[0]) != null ? _b : principalXml;
+  const home = firstTag(firstTag(principalChunk, "addressbook-home-set"), "href");
+  const homeUrl = absoluteHref(home, principalUrl);
+  if (!homeUrl) throw new Error("iCloud did not return an address-book home-set URL.");
+  const homeXml = await propfind(homeUrl, settings, HOME_PROPFIND, "1");
+  const books = parseAddressBooks(homeXml, homeUrl);
+  if (!books.length) throw new Error("No iCloud address books were found under the CardDAV home-set.");
+  return books;
 }
 async function fetchResources(settings) {
-  var _a, _b, _c, _d, _e, _f, _g;
-  const url = settings.carddavAddressBookUrl || settings.carddavUrl;
-  if (!url.trim()) throw new Error("Select an iCloud address book before syncing.");
-  const response = await (0, import_obsidian.requestUrl)({ url, method: "REPORT", headers: { ...authHeaders(settings), Accept: "application/xml, text/xml, text/vcard" }, body: '<?xml version="1.0"?><c:addressbook-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:carddav"><d:prop><d:getetag/><d:getcontenttype/><c:address-data/></d:prop></c:addressbook-query>' });
+  const url = settings.carddavAddressBookUrl.trim();
+  if (!url) throw new Error("Discover and select an iCloud address book before syncing.");
+  const response = await (0, import_obsidian.requestUrl)({ url, method: "REPORT", headers: { ...authHeaders(settings), Depth: "1", Accept: "application/xml, text/xml, text/vcard", "Content-Type": "application/xml; charset=utf-8" }, body: '<?xml version="1.0"?><c:addressbook-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:carddav"><d:prop><d:getetag/><d:getcontenttype/><c:address-data/></d:prop></c:addressbook-query>' });
   const resources = [];
-  const chunks = (_a = response.text.match(/<[^>]*response[\s\S]*?<\/[^>]*response>/gi)) != null ? _a : [];
-  for (const chunk of chunks) {
-    const href = (_c = (_b = chunk.match(/<[^>]*href[^>]*>([\s\S]*?)<\//i)) == null ? void 0 : _b[1]) == null ? void 0 : _c.trim();
-    const etag = (_f = (_e = (_d = chunk.match(/<[^>]*getetag[^>]*>([\s\S]*?)<\//i)) == null ? void 0 : _d[1]) == null ? void 0 : _e.trim()) != null ? _f : "";
-    const data = (_g = chunk.match(/<[^>]*address-data[^>]*>([\s\S]*?)<\//i)) == null ? void 0 : _g[1];
-    if (href && data) resources.push({ href: new URL(href, url).toString(), etag, vcardText: data.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&") });
+  for (const chunk of responseChunks(response.text)) {
+    const href = firstTag(chunk, "href");
+    const etag = firstTag(chunk, "getetag");
+    const data = firstTag(chunk, "address-data");
+    if (href && data) resources.push({ href: absoluteHref(href, url), etag, vcardText: data });
   }
   return resources;
 }
@@ -450,11 +488,12 @@ var PersonalCrmSettingsTab = class extends import_obsidian6.PluginSettingTab {
       await this.plugin.saveSettings();
     });
     e.createEl("h3", { text: "CardDAV / iCloud" });
-    this.text(e, "Discovery URL", "CardDAV discovery or address-book REPORT URL.", this.plugin.settings.carddavUrl, async (v) => {
+    this.text(e, "Discovery URL", "Use the iCloud CardDAV host; the address book is resolved during discovery.", this.plugin.settings.carddavUrl, async (v) => {
       this.plugin.settings.carddavUrl = v;
       await this.plugin.saveSettings();
     });
-    this.text(e, "Address book URL", "Selected address book collection URL.", this.plugin.settings.carddavAddressBookUrl, async (v) => {
+    new import_obsidian6.Setting(e).setName("Discover address books").setDesc(this.plugin.settings.carddavAddressBookLabel ? `Selected: ${this.plugin.settings.carddavAddressBookLabel}` : "Resolve your iCloud principal and choose an address book before syncing.").addButton((b) => b.setButtonText("Discover").setCta().onClick(() => void this.plugin.discoverAddressBooks()));
+    this.text(e, "Address book URL", "Selected collection URL. Leave blank until discovery completes.", this.plugin.settings.carddavAddressBookUrl, async (v) => {
       this.plugin.settings.carddavAddressBookUrl = v;
       await this.plugin.saveSettings();
     });
