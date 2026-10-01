@@ -1,0 +1,11 @@
+export type SyncState = "in-sync" | "new-in-icloud" | "changed-in-icloud" | "changed-locally" | "conflict" | "missing-remotely" | "inactive-locally" | "import-failed";
+export interface ContactSettings {
+  settingsVersion: number; rootFolder: string; contactsFolder: string; householdsFolder: string; interactionsFolder: string; reportsFolder: string; syncFolder: string;
+  carddavUrl: string; carddavPrincipalUrl: string; carddavAddressBookUrl: string; carddavAddressBookLabel: string; selectedAddressBookUrls: string[]; username: string; appPassword: string;
+  refreshHours: number; scheduleEnabled: boolean; prayerEnabled: boolean; prayerCategories: string[]; dashboardPath: string; showPrivacyReminder: boolean;
+}
+export const DEFAULT_SETTINGS: ContactSettings = { settingsVersion: 1, rootFolder: "Collections/Personal CRM", contactsFolder: "Collections/Personal CRM/Contacts", householdsFolder: "Collections/Personal CRM/Households", interactionsFolder: "Collections/Personal CRM/Interactions", reportsFolder: "Collections/Personal CRM/Reports", syncFolder: "Collections/Personal CRM/Sync", carddavUrl: "", carddavPrincipalUrl: "", carddavAddressBookUrl: "", carddavAddressBookLabel: "", selectedAddressBookUrls: [], username: "", appPassword: "", refreshHours: 0, scheduleEnabled: false, prayerEnabled: true, prayerCategories: ["Friends", "Church", "Family"], dashboardPath: "Collections/Personal CRM/Personal CRM Index.md", showPrivacyReminder: true };
+export interface ContactRecord { id: string; displayName: string; givenName: string; familyName: string; emails: string[]; phones: string[]; organization: string; addresses: string[]; websites: string[]; birthday: string; notes: string; icloudUid: string; href: string; etag: string; syncState: SyncState; recordState: "active" | "inactive"; relationshipType: string; tags: string[]; prayerEnabled: boolean; prayerCategories: string[]; cadenceDays: number | null; nextContactAt: string; path: string; }
+export interface CardDavResource { href: string; etag: string; vcardText: string; }
+export interface AddressBook { href: string; label: string; }
+export interface SyncResult { imported: number; updated: number; conflicts: number; missing: number; failed: number; addressBooks: AddressBook[]; }

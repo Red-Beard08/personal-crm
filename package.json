@@ -1,0 +1,23 @@
+{
+  "name": "personal-crm",
+  "version": "1.0.0",
+  "description": "iCloud-authoritative personal CRM for Obsidian with CardDAV, prayer, and dashboard integration.",
+  "main": "main.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && npm run build && node tests/test-utils.mjs && npm run validate",
+    "validate": "node scripts/validate-portability.mjs"
+  },
+  "keywords": ["obsidian", "crm", "carddav", "icloud", "relationships"],
+  "author": "Red-Beard",
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "latest",
+    "typescript": "^5.7.0"
+  }
+}
