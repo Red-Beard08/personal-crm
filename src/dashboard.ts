@@ -33,7 +33,6 @@ export class PersonalCrmView extends ItemView {
       card.createEl("strong", { text: String(value) });
       card.createEl("span", { text: String(label) });
     });
-    if (this.plugin.settings.showPrivacyReminder) el.createEl("p", { text: "Privacy reminder: contact mirrors are ordinary Markdown. iCloud remains the source of truth for identity fields.", cls: "personal-crm-notice" });
     const section = el.createDiv("personal-crm-section");
     section.createEl("h2", { text: "People" });
     const search = section.createEl("input", { type: "search", placeholder: "Search contacts…" });
@@ -43,9 +42,10 @@ export class PersonalCrmView extends ItemView {
       const query = search.value.toLowerCase();
       contacts.filter(c => !query || `${c.displayName} ${c.organization} ${c.relationshipType} ${c.tags.join(" ")}`.toLowerCase().includes(query)).forEach(contact => {
         const card = grid.createDiv("personal-crm-contact-card");
-        const title = card.createEl("button", { text: contact.displayName, cls: "personal-crm-card-link" });
+        const header = card.createDiv("personal-crm-contact-header");
+        const title = header.createEl("button", { text: contact.displayName, cls: "personal-crm-card-link" });
         title.onclick = () => this.plugin.openContact(contact);
-        card.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` });
+        header.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` });
         card.createEl("p", { text: [contact.organization, contact.relationshipType].filter(Boolean).join(" · ") || "No relationship details yet" });
         const row = card.createDiv("personal-crm-card-actions");
         new ButtonComponent(row).setButtonText("Open note").onClick(() => this.plugin.openFile(contact.path));
