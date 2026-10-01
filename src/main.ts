@@ -6,13 +6,14 @@ import { ContactDetailModal, NewContactModal } from "./modals";
 import { ContactRepository } from "./repository";
 import { PersonalCrmSettingsTab } from "./settings";
 import { DEFAULT_SETTINGS, type ContactSettings, type ContactRecord } from "./types";
+import crmCss from "../styles.css";
 
 export default class PersonalCrmPlugin extends Plugin {
   settings: ContactSettings = { ...DEFAULT_SETTINGS, selectedAddressBookUrls: [...DEFAULT_SETTINGS.selectedAddressBookUrls], prayerCategories: [...DEFAULT_SETTINGS.prayerCategories] };
   repository!: ContactRepository;
   private disposals: Array<() => void> = [];
   async onload(): Promise<void> {
-    await this.loadSettings(); this.repository = new ContactRepository(this.app, this.settings); this.registerView(VIEW, leaf => new PersonalCrmView(leaf, this)); this.addSettingTab(new PersonalCrmSettingsTab(this.app, this));
+    this.ensureStyles(); await this.loadSettings(); this.repository = new ContactRepository(this.app, this.settings); this.registerView(VIEW, leaf => new PersonalCrmView(leaf, this)); this.addSettingTab(new PersonalCrmSettingsTab(this.app, this));
     this.addRibbonIcon("users", "Open Personal CRM", () => void this.openDashboard());
     this.addCommand({ id: "open-dashboard", name: "Open dashboard", callback: () => void this.openDashboard() });
     this.addCommand({ id: "new-contact", name: "New contact", callback: () => this.openNewContact() });
@@ -25,6 +26,7 @@ export default class PersonalCrmPlugin extends Plugin {
     this.addCommand({ id: "open-settings", name: "Open Personal CRM settings", callback: () => this.openSettings() });
     this.registerDashboardIntegrations();
   }
+  private ensureStyles(): void { if (document.head.querySelector("style[data-red-beard-personal-crm]") || !crmCss) return; const style = document.createElement("style"); style.dataset.redBeardPersonalCrm = ""; style.textContent = crmCss; document.head.appendChild(style); this.register(() => style.remove()); }
   onunload(): void { this.disposals.forEach(dispose => dispose()); this.app.workspace.detachLeavesOfType(VIEW); }
   async loadSettings(): Promise<void> { const saved = await this.loadData() as Partial<ContactSettings> | null; this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}), selectedAddressBookUrls: saved?.selectedAddressBookUrls ?? [], prayerCategories: saved?.prayerCategories ?? DEFAULT_SETTINGS.prayerCategories }; }
   async saveSettings(): Promise<void> { await this.saveData(this.settings); this.repository?.updateSettings(this.settings); await this.refreshViews(); }

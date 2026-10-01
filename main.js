@@ -126,6 +126,7 @@ var PersonalCrmView = class extends import_obsidian2.ItemView {
     new import_obsidian2.ButtonComponent(actions).setButtonText("New Contact").setCta().onClick(() => this.plugin.openNewContact());
     new import_obsidian2.ButtonComponent(actions).setButtonText("Sync preview").onClick(() => void this.plugin.syncPreview());
     new import_obsidian2.ButtonComponent(actions).setButtonText("Sync now").onClick(() => void this.plugin.syncNow());
+    new import_obsidian2.ButtonComponent(actions).setButtonText("Settings").onClick(() => this.plugin.openSettings());
     const metrics = el.createDiv("personal-crm-metrics");
     [[active.length, "Active contacts"], [contacts.length - active.length, "Inactive"], [due.length, "Follow-ups due"], [conflicts.length, "Conflicts"]].forEach(([value, label]) => {
       const card = metrics.createDiv("personal-crm-metric");
@@ -492,6 +493,9 @@ var PersonalCrmSettingsTab = class extends import_obsidian6.PluginSettingTab {
 // src/types.ts
 var DEFAULT_SETTINGS = { settingsVersion: 1, rootFolder: "Collections/Personal CRM", contactsFolder: "Collections/Personal CRM/Contacts", householdsFolder: "Collections/Personal CRM/Households", interactionsFolder: "Collections/Personal CRM/Interactions", reportsFolder: "Collections/Personal CRM/Reports", syncFolder: "Collections/Personal CRM/Sync", carddavUrl: "", carddavPrincipalUrl: "", carddavAddressBookUrl: "", carddavAddressBookLabel: "", selectedAddressBookUrls: [], username: "", appPassword: "", refreshHours: 0, scheduleEnabled: false, prayerEnabled: true, prayerCategories: ["Friends", "Church", "Family"], dashboardPath: "Collections/Personal CRM/Personal CRM Index.md", showPrivacyReminder: true };
 
+// styles.css
+var styles_default = '.personal-crm-dashboard { --crm-accent: var(--interactive-accent); overflow-y: auto; padding: clamp(18px, 4vw, 48px); }\n.personal-crm-hero, .personal-crm-section { max-width: 1180px; margin: 0 auto 22px; }\n.personal-crm-hero { border: 1px solid var(--background-modifier-border); border-radius: 22px; padding: clamp(22px, 5vw, 48px); background: linear-gradient(135deg, var(--background-secondary), rgba(var(--interactive-accent-rgb), .12)); }\n.personal-crm-kicker { color: var(--crm-accent); font-size: var(--font-ui-small); font-weight: var(--font-semibold); letter-spacing: .14em; }\n.personal-crm-hero h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .25rem 0; letter-spacing: -.04em; }\n.personal-crm-hero p { color: var(--text-muted); max-width: 680px; }\n.personal-crm-actions, .personal-crm-card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }\n.personal-crm-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 1180px; margin: 0 auto 24px; }\n.personal-crm-metric { border: 1px solid var(--background-modifier-border); border-radius: 16px; padding: 18px; background: var(--background-secondary); }\n.personal-crm-metric strong, .personal-crm-metric span { display: block; } .personal-crm-metric strong { font-size: 1.8rem; }\n.personal-crm-metric span, .personal-crm-muted { color: var(--text-muted); }\n.personal-crm-notice { border-left: 4px solid var(--color-orange); border-radius: 10px; padding: 12px 16px; background: rgba(var(--color-orange-rgb), .12); color: var(--text-muted); max-width: 1180px; margin: 0 auto 22px; }\n.personal-crm-section { border: 1px solid var(--background-modifier-border); border-radius: 18px; padding: 22px; background: var(--background-secondary); }\n.personal-crm-section input[type="search"] { width: 100%; margin: 10px 0 18px; }\n.personal-crm-contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }\n.personal-crm-contact-card { border: 1px solid var(--background-modifier-border); border-radius: 14px; padding: 16px; background: var(--background-primary); }\n.personal-crm-card-link { border: 0; padding: 0; background: transparent; color: var(--text-accent); font-size: 1.1rem; font-weight: var(--font-semibold); cursor: pointer; }\n.personal-crm-chip { display: inline-block; margin-left: 8px; padding: 3px 8px; border-radius: 999px; font-size: var(--font-ui-smaller); background: var(--background-modifier-hover); }\n.personal-crm-chip.is-conflict { background: rgba(var(--color-red-rgb), .18); color: var(--color-red); }\n.personal-crm-modal .modal-content { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }\n@media (max-width: 700px) { .personal-crm-dashboard { padding: 14px; } .personal-crm-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .personal-crm-hero h1 { font-size: 2.2rem; } .personal-crm-contact-grid { grid-template-columns: 1fr; } }\n';
+
 // src/main.ts
 var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
   constructor() {
@@ -500,6 +504,7 @@ var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
     this.disposals = [];
   }
   async onload() {
+    this.ensureStyles();
     await this.loadSettings();
     this.repository = new ContactRepository(this.app, this.settings);
     this.registerView(VIEW, (leaf) => new PersonalCrmView(leaf, this));
@@ -515,6 +520,14 @@ var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
     this.addCommand({ id: "refresh", name: "Refresh CRM", callback: () => void this.refreshViews() });
     this.addCommand({ id: "open-settings", name: "Open Personal CRM settings", callback: () => this.openSettings() });
     this.registerDashboardIntegrations();
+  }
+  ensureStyles() {
+    if (document.head.querySelector("style[data-red-beard-personal-crm]") || !styles_default) return;
+    const style = document.createElement("style");
+    style.dataset.redBeardPersonalCrm = "";
+    style.textContent = styles_default;
+    document.head.appendChild(style);
+    this.register(() => style.remove());
   }
   onunload() {
     this.disposals.forEach((dispose) => dispose());
