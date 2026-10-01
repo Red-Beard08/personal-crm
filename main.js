@@ -159,8 +159,9 @@ var PersonalCrmView = class extends import_obsidian2.ItemView {
 
 // src/dashboard-bridge.ts
 function host(app) {
-  var _a, _b;
-  return (_b = (_a = app.plugins) == null ? void 0 : _a.getPlugin) == null ? void 0 : _b.call(_a, "red-beard-dashboard");
+  var _a, _b, _c;
+  const plugins = app.plugins;
+  return (_c = (_a = plugins == null ? void 0 : plugins.getPlugin) == null ? void 0 : _a.call(plugins, "red-beard-dashboard")) != null ? _c : (_b = plugins == null ? void 0 : plugins.plugins) == null ? void 0 : _b["red-beard-dashboard"];
 }
 function register(app, method, definition) {
   let dispose = () => void 0;
