@@ -14,9 +14,9 @@
 .personal-crm-section input[type="search"] { width: 100%; margin: 0 0 22px; }
 .personal-crm-contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
 .personal-crm-contact-card { border: 1px solid var(--background-modifier-border); border-radius: 14px; padding: 18px; background: var(--background-primary); min-width: 0; }
-.personal-crm-contact-header { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 14px; }
-.personal-crm-contact-header .personal-crm-card-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.personal-crm-card-link { border: 0; padding: 0; background: transparent; color: var(--text-accent); font-size: 1.1rem; font-weight: var(--font-semibold); cursor: pointer; }
+.personal-crm-contact-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; margin-bottom: 14px; }
+.personal-crm-contact-header .personal-crm-card-link { flex: 1 1 145px; min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+.personal-crm-card-link { display: block; width: auto; border: 0 !important; padding: 0 !important; margin: 0; background: transparent !important; box-shadow: none !important; color: var(--text-accent); font-size: 1.1rem; font-weight: var(--font-semibold); line-height: 1.35; text-align: left; cursor: pointer; }
 .personal-crm-chip { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; font-size: var(--font-ui-smaller); background: var(--background-modifier-hover); }
 .personal-crm-chip.is-conflict { background: rgba(var(--color-red-rgb), .18); color: var(--color-red); }
 .personal-crm-detail-summary, .personal-crm-detail-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
