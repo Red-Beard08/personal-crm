@@ -58,7 +58,7 @@ function absoluteHref(href, baseUrl) {
   }
 }
 function parseVCard(input) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
   const fields = /* @__PURE__ */ new Map();
   for (const line of unfold(input)) {
     const colon = line.indexOf(":");
@@ -69,7 +69,11 @@ function parseVCard(input) {
   }
   const name = ((_c = (_b = fields.get("N")) == null ? void 0 : _b[0]) != null ? _c : "").split(";");
   const displayName = (_e = (_d = fields.get("FN")) == null ? void 0 : _d[0]) != null ? _e : [name[1], name[0]].filter(Boolean).join(" ") || "Unnamed contact";
-  return { uid: (_g = (_f = fields.get("UID")) == null ? void 0 : _f[0]) != null ? _g : "", displayName, givenName: (_h = name[1]) != null ? _h : "", familyName: (_i = name[0]) != null ? _i : "", emails: (_j = fields.get("EMAIL")) != null ? _j : [], phones: [...(_k = fields.get("TEL")) != null ? _k : []], organization: (_m = (_l = fields.get("ORG")) == null ? void 0 : _l[0]) != null ? _m : "", addresses: (_n = fields.get("ADR")) != null ? _n : [], websites: (_o = fields.get("URL")) != null ? _o : [], birthday: (_q = (_p = fields.get("BDAY")) == null ? void 0 : _p[0]) != null ? _q : "", notes: (_s = (_r = fields.get("NOTE")) == null ? void 0 : _r.join("\n")) != null ? _s : "" };
+  const memberUids = [...(_f = fields.get("MEMBER")) != null ? _f : [], ...(_g = fields.get("X-ADDRESSBOOKSERVER-MEMBER")) != null ? _g : []].map((value) => value.replace(/^urn:uuid:/i, "").trim()).filter(Boolean);
+  return { uid: (_i = (_h = fields.get("UID")) == null ? void 0 : _h[0]) != null ? _i : "", displayName, givenName: (_j = name[1]) != null ? _j : "", familyName: (_k = name[0]) != null ? _k : "", emails: (_l = fields.get("EMAIL")) != null ? _l : [], phones: [...(_m = fields.get("TEL")) != null ? _m : []], organization: (_o = (_n = fields.get("ORG")) == null ? void 0 : _n[0]) != null ? _o : "", addresses: (_p = fields.get("ADR")) != null ? _p : [], websites: (_q = fields.get("URL")) != null ? _q : [], birthday: (_s = (_r = fields.get("BDAY")) == null ? void 0 : _r[0]) != null ? _s : "", notes: (_u = (_t = fields.get("NOTE")) == null ? void 0 : _t.join("\n")) != null ? _u : "", kind: (_y = (_x = (_v = fields.get("KIND")) == null ? void 0 : _v[0]) != null ? _x : (_w = fields.get("X-ADDRESSBOOKSERVER-KIND")) == null ? void 0 : _w[0]) != null ? _y : "", memberUids };
+}
+function parseContactGroups(resources) {
+  return resources.map((resource) => parseVCard(resource.vcardText)).filter((card) => card.kind.toLowerCase() === "group" && card.displayName).map((card) => ({ name: card.displayName, memberUids: card.memberUids }));
 }
 function parseAddressBooks(xml, baseUrl) {
   const result = [];
@@ -375,6 +379,9 @@ ${block}
     var _a;
     await this.initialize();
     const resources = await fetchResources(this.settings);
+    const groups = parseContactGroups(resources);
+    const selectedNames = new Set(this.settings.selectedGroupNames.map((value) => normalizeValue(value)));
+    const allowedUids = selectedNames.size ? new Set(groups.filter((group) => selectedNames.has(normalizeValue(group.name))).flatMap((group) => group.memberUids)) : null;
     const existing = this.getContacts();
     const byUid = new Map(existing.filter((c) => c.icloudUid).map((c) => [c.icloudUid, c]));
     let imported = 0, updated = 0, conflicts = 0, failed = 0;
@@ -382,6 +389,7 @@ ${block}
     for (const resource of resources) {
       try {
         const card = parseVCard(resource.vcardText);
+        if (card.kind.toLowerCase() === "group" || allowedUids && !allowedUids.has(card.uid)) continue;
         const match = byUid.get(card.uid);
         seen.add((_a = match == null ? void 0 : match.id) != null ? _a : card.uid);
         if (match) {
@@ -490,6 +498,7 @@ var PersonalCrmSettingsTab = class extends import_obsidian6.PluginSettingTab {
       await this.plugin.saveSettings();
     });
     new import_obsidian6.Setting(e).setName("Discover address books").setDesc(this.plugin.settings.carddavAddressBookLabel ? `Selected: ${this.plugin.settings.carddavAddressBookLabel}` : "Resolve your iCloud principal and choose an address book before syncing.").addButton((b) => b.setButtonText("Discover").setCta().onClick(() => void this.plugin.discoverAddressBooks()));
+    new import_obsidian6.Setting(e).setName("Contact lists / groups").setDesc(this.plugin.settings.selectedGroupNames.length ? `Syncing selected: ${this.plugin.settings.selectedGroupNames.join(", ")}` : "All contacts in the selected book; optionally limit sync to one or more groups.").addButton((b) => b.setButtonText("Choose lists").onClick(() => void this.plugin.discoverContactGroups()));
     this.text(e, "Address book URL", "Selected collection URL. Leave blank until discovery completes.", this.plugin.settings.carddavAddressBookUrl, async (v) => {
       this.plugin.settings.carddavAddressBookUrl = v;
       await this.plugin.saveSettings();
@@ -555,9 +564,34 @@ var AddressBookPickerModal = class extends import_obsidian6.Modal {
     this.contentEl.empty();
   }
 };
+var ContactGroupPickerModal = class extends import_obsidian6.Modal {
+  constructor(app, plugin, groups) {
+    super(app);
+    this.plugin = plugin;
+    this.groups = groups;
+    this.selected = new Set(plugin.settings.selectedGroupNames);
+  }
+  onOpen() {
+    this.titleEl.setText("Choose contact lists");
+    this.contentEl.createEl("p", { text: "Choose zero or more groups. An empty selection syncs every contact in the selected address book." });
+    for (const group of this.groups) new import_obsidian6.Setting(this.contentEl).setName(group.name).setDesc(`${group.memberUids.length} contacts`).addToggle((toggle) => toggle.setValue(this.selected.has(group.name)).onChange((value) => {
+      if (value) this.selected.add(group.name);
+      else this.selected.delete(group.name);
+    }));
+    new import_obsidian6.Setting(this.contentEl).addButton((button) => button.setButtonText("Save selection").setCta().onClick(async () => {
+      this.plugin.settings.selectedGroupNames = [...this.selected];
+      await this.plugin.saveSettings();
+      new import_obsidian6.Notice(this.selected.size ? `Selected ${this.selected.size} contact list${this.selected.size === 1 ? "" : "s"}.` : "All contacts will be synced.");
+      this.close();
+    }));
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 
 // src/types.ts
-var DEFAULT_SETTINGS = { settingsVersion: 1, rootFolder: "Collections/Personal CRM", contactsFolder: "Collections/Personal CRM/Contacts", householdsFolder: "Collections/Personal CRM/Households", interactionsFolder: "Collections/Personal CRM/Interactions", reportsFolder: "Collections/Personal CRM/Reports", syncFolder: "Collections/Personal CRM/Sync", carddavUrl: "", carddavPrincipalUrl: "", carddavAddressBookUrl: "", carddavAddressBookLabel: "", selectedAddressBookUrls: [], username: "", appPassword: "", refreshHours: 0, scheduleEnabled: false, prayerEnabled: true, prayerCategories: ["Friends", "Church", "Family"], dashboardPath: "Collections/Personal CRM/Personal CRM Index.md", showPrivacyReminder: true };
+var DEFAULT_SETTINGS = { settingsVersion: 1, rootFolder: "Collections/Personal CRM", contactsFolder: "Collections/Personal CRM/Contacts", householdsFolder: "Collections/Personal CRM/Households", interactionsFolder: "Collections/Personal CRM/Interactions", reportsFolder: "Collections/Personal CRM/Reports", syncFolder: "Collections/Personal CRM/Sync", carddavUrl: "", carddavPrincipalUrl: "", carddavAddressBookUrl: "", carddavAddressBookLabel: "", selectedAddressBookUrls: [], selectedGroupNames: [], username: "", appPassword: "", refreshHours: 0, scheduleEnabled: false, prayerEnabled: true, prayerCategories: ["Friends", "Church", "Family"], dashboardPath: "Collections/Personal CRM/Personal CRM Index.md", showPrivacyReminder: true };
 
 // styles.css
 var styles_default = '.personal-crm-dashboard { --crm-accent: var(--interactive-accent); overflow-y: auto; padding: clamp(18px, 4vw, 48px); }\n.personal-crm-hero, .personal-crm-section { max-width: 1180px; margin: 0 auto 22px; }\n.personal-crm-hero { border: 1px solid var(--background-modifier-border); border-radius: 22px; padding: clamp(22px, 5vw, 48px); background: linear-gradient(135deg, var(--background-secondary), rgba(var(--interactive-accent-rgb), .12)); }\n.personal-crm-kicker { color: var(--crm-accent); font-size: var(--font-ui-small); font-weight: var(--font-semibold); letter-spacing: .14em; }\n.personal-crm-hero h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .25rem 0; letter-spacing: -.04em; }\n.personal-crm-hero p { color: var(--text-muted); max-width: 680px; }\n.personal-crm-actions, .personal-crm-card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }\n.personal-crm-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 1180px; margin: 0 auto 24px; }\n.personal-crm-metric { border: 1px solid var(--background-modifier-border); border-radius: 16px; padding: 18px; background: var(--background-secondary); }\n.personal-crm-metric strong, .personal-crm-metric span { display: block; } .personal-crm-metric strong { font-size: 1.8rem; }\n.personal-crm-metric span, .personal-crm-muted { color: var(--text-muted); }\n.personal-crm-notice { border-left: 4px solid var(--color-orange); border-radius: 10px; padding: 12px 16px; background: rgba(var(--color-orange-rgb), .12); color: var(--text-muted); max-width: 1180px; margin: 0 auto 22px; }\n.personal-crm-section { border: 1px solid var(--background-modifier-border); border-radius: 18px; padding: 22px; background: var(--background-secondary); }\n.personal-crm-section input[type="search"] { width: 100%; margin: 10px 0 18px; }\n.personal-crm-contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }\n.personal-crm-contact-card { border: 1px solid var(--background-modifier-border); border-radius: 14px; padding: 16px; background: var(--background-primary); }\n.personal-crm-card-link { border: 0; padding: 0; background: transparent; color: var(--text-accent); font-size: 1.1rem; font-weight: var(--font-semibold); cursor: pointer; }\n.personal-crm-chip { display: inline-block; margin-left: 8px; padding: 3px 8px; border-radius: 999px; font-size: var(--font-ui-smaller); background: var(--background-modifier-hover); }\n.personal-crm-chip.is-conflict { background: rgba(var(--color-red-rgb), .18); color: var(--color-red); }\n.personal-crm-modal .modal-content { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }\n@media (max-width: 700px) { .personal-crm-dashboard { padding: 14px; } .personal-crm-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .personal-crm-hero h1 { font-size: 2.2rem; } .personal-crm-contact-grid { grid-template-columns: 1fr; } }\n';
@@ -566,7 +600,7 @@ var styles_default = '.personal-crm-dashboard { --crm-accent: var(--interactive-
 var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
   constructor() {
     super(...arguments);
-    this.settings = { ...DEFAULT_SETTINGS, selectedAddressBookUrls: [...DEFAULT_SETTINGS.selectedAddressBookUrls], prayerCategories: [...DEFAULT_SETTINGS.prayerCategories] };
+    this.settings = { ...DEFAULT_SETTINGS, selectedAddressBookUrls: [...DEFAULT_SETTINGS.selectedAddressBookUrls], selectedGroupNames: [...DEFAULT_SETTINGS.selectedGroupNames], prayerCategories: [...DEFAULT_SETTINGS.prayerCategories] };
     this.disposals = [];
   }
   async onload() {
@@ -581,6 +615,7 @@ var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
     this.addCommand({ id: "sync-preview", name: "Preview iCloud sync", callback: () => void this.syncPreview() });
     this.addCommand({ id: "sync-now", name: "Sync iCloud contacts (read-only)", callback: () => void this.syncNow() });
     this.addCommand({ id: "manage-address-books", name: "Discover iCloud address books", callback: () => void this.discoverAddressBooks() });
+    this.addCommand({ id: "manage-contact-groups", name: "Choose iCloud contact lists", callback: () => void this.discoverContactGroups() });
     this.addCommand({ id: "review-conflicts", name: "Review CRM conflicts", callback: () => void this.reviewConflicts() });
     this.addCommand({ id: "open-prayer-people", name: "Open people to pray for", callback: () => this.openPrayerPeople() });
     this.addCommand({ id: "refresh", name: "Refresh CRM", callback: () => void this.refreshViews() });
@@ -657,6 +692,22 @@ var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
       new AddressBookPickerModal(this.app, this, books).open();
     } catch (error) {
       new import_obsidian7.Notice(`Address-book discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  async discoverContactGroups() {
+    try {
+      if (!this.settings.carddavAddressBookUrl) {
+        new import_obsidian7.Notice("Choose an iCloud address book first.");
+        return;
+      }
+      const groups = parseContactGroups(await fetchResources(this.settings));
+      if (!groups.length) {
+        new import_obsidian7.Notice("No contact lists/groups were found in this address book.");
+        return;
+      }
+      new ContactGroupPickerModal(this.app, this, groups).open();
+    } catch (error) {
+      new import_obsidian7.Notice(`Contact-list discovery failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   async reviewConflicts() {

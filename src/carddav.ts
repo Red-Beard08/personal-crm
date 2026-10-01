@@ -1,7 +1,7 @@
 import { requestUrl } from "obsidian";
 import type { AddressBook, CardDavResource, ContactSettings } from "./types";
 
-export interface ParsedVCard { uid: string; displayName: string; givenName: string; familyName: string; emails: string[]; phones: string[]; organization: string; addresses: string[]; websites: string[]; birthday: string; notes: string; }
+export interface ParsedVCard { uid: string; displayName: string; givenName: string; familyName: string; emails: string[]; phones: string[]; organization: string; addresses: string[]; websites: string[]; birthday: string; notes: string; kind: string; memberUids: string[]; }
 function xmlDecode(value: string): string {
   return value
     .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => String.fromCodePoint(parseInt(code, 16)))
@@ -18,7 +18,13 @@ export function parseVCard(input: string): ParsedVCard {
   const fields = new Map<string, string[]>();
   for (const line of unfold(input)) { const colon = line.indexOf(":"); if (colon < 0) continue; const key = line.slice(0, colon).split(";")[0].toUpperCase(); const value = unescape(line.slice(colon + 1)); fields.set(key, [...(fields.get(key) ?? []), value]); }
   const name = (fields.get("N")?.[0] ?? "").split(";"); const displayName = fields.get("FN")?.[0] ?? ([name[1], name[0]].filter(Boolean).join(" ") || "Unnamed contact");
-  return { uid: fields.get("UID")?.[0] ?? "", displayName, givenName: name[1] ?? "", familyName: name[0] ?? "", emails: fields.get("EMAIL") ?? [], phones: [...(fields.get("TEL") ?? [])], organization: fields.get("ORG")?.[0] ?? "", addresses: fields.get("ADR") ?? [], websites: fields.get("URL") ?? [], birthday: fields.get("BDAY")?.[0] ?? "", notes: fields.get("NOTE")?.join("\n") ?? "" };
+  const memberUids = [...(fields.get("MEMBER") ?? []), ...(fields.get("X-ADDRESSBOOKSERVER-MEMBER") ?? [])].map(value => value.replace(/^urn:uuid:/i, "").trim()).filter(Boolean);
+  return { uid: fields.get("UID")?.[0] ?? "", displayName, givenName: name[1] ?? "", familyName: name[0] ?? "", emails: fields.get("EMAIL") ?? [], phones: [...(fields.get("TEL") ?? [])], organization: fields.get("ORG")?.[0] ?? "", addresses: fields.get("ADR") ?? [], websites: fields.get("URL") ?? [], birthday: fields.get("BDAY")?.[0] ?? "", notes: fields.get("NOTE")?.join("\n") ?? "", kind: fields.get("KIND")?.[0] ?? fields.get("X-ADDRESSBOOKSERVER-KIND")?.[0] ?? "", memberUids };
+}
+
+export interface ContactGroup { name: string; memberUids: string[]; }
+export function parseContactGroups(resources: CardDavResource[]): ContactGroup[] {
+  return resources.map(resource => parseVCard(resource.vcardText)).filter(card => card.kind.toLowerCase() === "group" && card.displayName).map(card => ({ name: card.displayName, memberUids: card.memberUids }));
 }
 export function parseAddressBooks(xml: string, baseUrl: string): AddressBook[] {
   const result: AddressBook[] = [];

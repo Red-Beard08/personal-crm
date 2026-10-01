@@ -1,4 +1,5 @@
 import { Modal, Notice, PluginSettingTab, Setting } from "obsidian";
+import type { ContactGroup } from "./carddav";
 import type { AddressBook } from "./types";
 import type PersonalCrmPlugin from "./main";
 
@@ -12,6 +13,7 @@ export class PersonalCrmSettingsTab extends PluginSettingTab {
     e.createEl("h3", { text: "CardDAV / iCloud" });
     this.text(e, "Discovery URL", "Use the iCloud CardDAV host; the address book is resolved during discovery.", this.plugin.settings.carddavUrl, async v => { this.plugin.settings.carddavUrl = v; await this.plugin.saveSettings(); });
     new Setting(e).setName("Discover address books").setDesc(this.plugin.settings.carddavAddressBookLabel ? `Selected: ${this.plugin.settings.carddavAddressBookLabel}` : "Resolve your iCloud principal and choose an address book before syncing.").addButton(b => b.setButtonText("Discover").setCta().onClick(() => void this.plugin.discoverAddressBooks()));
+    new Setting(e).setName("Contact lists / groups").setDesc(this.plugin.settings.selectedGroupNames.length ? `Syncing selected: ${this.plugin.settings.selectedGroupNames.join(", ")}` : "All contacts in the selected book; optionally limit sync to one or more groups.").addButton(b => b.setButtonText("Choose lists").onClick(() => void this.plugin.discoverContactGroups()));
     this.text(e, "Address book URL", "Selected collection URL. Leave blank until discovery completes.", this.plugin.settings.carddavAddressBookUrl, async v => { this.plugin.settings.carddavAddressBookUrl = v; await this.plugin.saveSettings(); });
     this.text(e, "Username", "iCloud/CardDAV username.", this.plugin.settings.username, async v => { this.plugin.settings.username = v; await this.plugin.saveSettings(); });
     this.text(e, "App-specific password", "Stored in plugin data and never written to Markdown.", this.plugin.settings.appPassword, async v => { this.plugin.settings.appPassword = v; await this.plugin.saveSettings(); }, true);
@@ -45,6 +47,18 @@ export class AddressBookPickerModal extends Modal {
         });
       });
     }
+  }
+  onClose(): void { this.contentEl.empty(); }
+}
+
+export class ContactGroupPickerModal extends Modal {
+  private selected: Set<string>;
+  constructor(app: import("obsidian").App, private plugin: PersonalCrmPlugin, private groups: ContactGroup[]) { super(app); this.selected = new Set(plugin.settings.selectedGroupNames); }
+  onOpen(): void {
+    this.titleEl.setText("Choose contact lists");
+    this.contentEl.createEl("p", { text: "Choose zero or more groups. An empty selection syncs every contact in the selected address book." });
+    for (const group of this.groups) new Setting(this.contentEl).setName(group.name).setDesc(`${group.memberUids.length} contacts`).addToggle(toggle => toggle.setValue(this.selected.has(group.name)).onChange(value => { if (value) this.selected.add(group.name); else this.selected.delete(group.name); }));
+    new Setting(this.contentEl).addButton(button => button.setButtonText("Save selection").setCta().onClick(async () => { this.plugin.settings.selectedGroupNames = [...this.selected]; await this.plugin.saveSettings(); new Notice(this.selected.size ? `Selected ${this.selected.size} contact list${this.selected.size === 1 ? "" : "s"}.` : "All contacts will be synced."); this.close(); }));
   }
   onClose(): void { this.contentEl.empty(); }
 }
