@@ -2,7 +2,12 @@ import { requestUrl } from "obsidian";
 import type { AddressBook, CardDavResource, ContactSettings } from "./types";
 
 export interface ParsedVCard { uid: string; displayName: string; givenName: string; familyName: string; emails: string[]; phones: string[]; organization: string; addresses: string[]; websites: string[]; birthday: string; notes: string; }
-function xmlDecode(value: string): string { return value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&").trim(); }
+function xmlDecode(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(parseInt(code, 10)))
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&").trim();
+}
 function unescape(value: string): string { return value.replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\").trim(); }
 function unfold(input: string): string[] { const lines = input.replace(/\r/g, "").split("\n"); const out: string[] = []; for (const line of lines) { if (/^[ \t]/.test(line) && out.length) out[out.length - 1] += line.slice(1); else out.push(line); } return out; }
 function firstTag(input: string, localName: string): string { const escaped = localName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); const match = input.match(new RegExp(`<[^>]*:?${escaped}[^>]*>([\\s\\S]*?)<\\/[^>]*:?${escaped}\\s*>`, "i")); return match?.[1] ? xmlDecode(match[1]) : ""; }
