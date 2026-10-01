@@ -174,24 +174,73 @@ var PersonalCrmView = class extends import_obsidian2.ItemView {
     });
     const section = el.createDiv("personal-crm-section");
     section.createEl("h2", { text: "People" });
-    const search = section.createEl("input", { type: "search", placeholder: "Search contacts\u2026" });
-    const grid = section.createDiv("personal-crm-contact-grid");
+    const toolbar = section.createDiv("personal-crm-table-toolbar");
+    const search = toolbar.createEl("input", { type: "search", placeholder: "Search all people\u2026" });
+    const tableWrap = section.createDiv("personal-crm-table-wrap");
+    const table = tableWrap.createEl("table", { cls: "personal-crm-contact-table" });
+    const columns = [{ key: "displayName", label: "Name" }, { key: "relationshipType", label: "Relationship" }, { key: "church", label: "Church" }, { key: "status", label: "Status" }, { key: "cadenceDays", label: "Cadence" }, { key: "syncState", label: "Sync" }];
+    const filters = {};
+    let sortKey = "displayName";
+    let descending = false;
+    const head = table.createTHead();
+    const headerRow = head.insertRow();
+    const filterRow = head.insertRow();
+    const valueFor = (contact, key) => {
+      var _a;
+      return key === "cadenceDays" ? contact.cadenceDays ? `${contact.cadenceDays} days` : "" : String((_a = contact[key]) != null ? _a : "");
+    };
+    columns.forEach((column) => {
+      const cell = headerRow.insertCell();
+      const sort = cell.createEl("button", { text: column.label, cls: "personal-crm-sort-button" });
+      sort.onclick = () => {
+        if (sortKey === column.key) descending = !descending;
+        else {
+          sortKey = column.key;
+          descending = false;
+        }
+        draw();
+      };
+      const filterCell = filterRow.insertCell();
+      const input = filterCell.createEl("input", { type: "search", placeholder: `Filter ${column.label.toLowerCase()}\u2026` });
+      input.oninput = () => {
+        filters[column.key] = input.value.toLowerCase();
+        draw();
+      };
+    });
+    headerRow.insertCell().setText("Actions");
+    filterRow.insertCell();
+    const body = table.createTBody();
     const draw = () => {
-      grid.empty();
+      body.empty();
       const query = search.value.toLowerCase();
-      contacts.filter((c) => !query || `${c.displayName} ${c.organization} ${c.relationshipType} ${c.tags.join(" ")}`.toLowerCase().includes(query)).forEach((contact) => {
-        const card = grid.createDiv("personal-crm-contact-card");
-        const header = card.createDiv("personal-crm-contact-header");
-        const title = header.createEl("button", { text: contact.displayName, cls: "personal-crm-card-link" });
-        title.onclick = () => this.plugin.openContact(contact);
-        header.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` });
-        card.createEl("p", { text: [contact.organization, contact.relationshipType, contact.church].filter(Boolean).join(" \xB7 ") || "No relationship details yet" });
-        if (contact.status || contact.cadenceDays || contact.preferredContactMethod || contact.tags.length) card.createEl("small", { text: [contact.status, contact.cadenceDays ? `Every ${contact.cadenceDays} days` : "", contact.preferredContactMethod, ...contact.tags].filter(Boolean).join(" \xB7 "), cls: "personal-crm-contact-meta" });
-        const row = card.createDiv("personal-crm-card-actions");
-        new import_obsidian2.ButtonComponent(row).setButtonText("Open note").onClick(() => this.plugin.openFile(contact.path));
-        if (contact.prayerEnabled) new import_obsidian2.ButtonComponent(row).setButtonText("Prayer enabled").onClick(() => void this.plugin.openPrayerPeople());
+      const visible = contacts.filter((contact) => {
+        const all = `${contact.displayName} ${contact.organization} ${contact.relationshipType} ${contact.church} ${contact.tags.join(" ")}`.toLowerCase();
+        return (!query || all.includes(query)) && columns.every((column) => !filters[column.key] || valueFor(contact, column.key).toLowerCase().includes(filters[column.key]));
+      }).sort((a, b) => {
+        const left = valueFor(a, sortKey).toLowerCase();
+        const right = valueFor(b, sortKey).toLowerCase();
+        return (left.localeCompare(right, void 0, { numeric: true }) || a.displayName.localeCompare(b.displayName)) * (descending ? -1 : 1);
       });
-      if (!grid.children.length) grid.createEl("p", { text: "No CRM contacts yet. Import from iCloud or create a local workspace note." });
+      visible.forEach((contact) => {
+        const row = body.insertRow();
+        const nameCell = row.insertCell();
+        const link = nameCell.createEl("button", { text: contact.displayName, cls: "personal-crm-table-link" });
+        link.onclick = () => this.plugin.openContact(contact);
+        row.insertCell().setText(contact.relationshipType || "\u2014");
+        row.insertCell().setText(contact.church || contact.organization || "\u2014");
+        row.insertCell().setText(contact.status || "\u2014");
+        row.insertCell().setText(contact.cadenceDays ? `${contact.cadenceDays} days` : "\u2014");
+        const syncCell = row.insertCell();
+        syncCell.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` });
+        const actions2 = row.insertCell();
+        new import_obsidian2.ButtonComponent(actions2).setButtonText("Open").onClick(() => this.plugin.openFile(contact.path));
+      });
+      if (!visible.length) {
+        const row = body.insertRow();
+        const cell = row.insertCell();
+        cell.colSpan = columns.length + 1;
+        cell.setText("No CRM contacts match these filters.");
+      }
     };
     search.oninput = draw;
     draw();
@@ -644,7 +693,7 @@ var ContactGroupPickerModal = class extends import_obsidian6.Modal {
 var DEFAULT_SETTINGS = { settingsVersion: 1, rootFolder: "Collections/Personal CRM", contactsFolder: "Collections/Personal CRM/Contacts", householdsFolder: "Collections/Personal CRM/Households", interactionsFolder: "Collections/Personal CRM/Interactions", reportsFolder: "Collections/Personal CRM/Reports", syncFolder: "Collections/Personal CRM/Sync", carddavUrl: "", carddavPrincipalUrl: "", carddavAddressBookUrl: "", carddavAddressBookLabel: "", selectedAddressBookUrls: [], selectedGroupNames: [], username: "", appPassword: "", refreshHours: 0, scheduleEnabled: false, prayerEnabled: true, prayerCategories: ["Friends", "Church", "Family"], dashboardPath: "Collections/Personal CRM/Personal CRM Index.md", showPrivacyReminder: true };
 
 // styles.css
-var styles_default = '.personal-crm-dashboard { --crm-accent: var(--interactive-accent); overflow-y: auto; padding: clamp(22px, 4vw, 52px); }\n.personal-crm-hero, .personal-crm-section { max-width: 1180px; margin: 0 auto 28px; }\n.personal-crm-hero { border: 1px solid var(--background-modifier-border); border-radius: 22px; padding: clamp(22px, 5vw, 48px); background: linear-gradient(135deg, var(--background-secondary), rgba(var(--interactive-accent-rgb), .12)); }\n.personal-crm-kicker { color: var(--crm-accent); font-size: var(--font-ui-small); font-weight: var(--font-semibold); letter-spacing: .14em; }\n.personal-crm-hero h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .25rem 0; letter-spacing: -.04em; }\n.personal-crm-hero p { color: var(--text-muted); max-width: 680px; }\n.personal-crm-actions, .personal-crm-card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }\n.personal-crm-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 1180px; margin: 0 auto 24px; }\n.personal-crm-metric { border: 1px solid var(--background-modifier-border); border-radius: 16px; padding: 18px; background: var(--background-secondary); }\n.personal-crm-metric strong, .personal-crm-metric span { display: block; } .personal-crm-metric strong { font-size: 1.8rem; }\n.personal-crm-metric span, .personal-crm-muted { color: var(--text-muted); }\n.personal-crm-section { border: 1px solid var(--background-modifier-border); border-radius: 18px; padding: clamp(22px, 3vw, 30px); background: var(--background-secondary); }\n.personal-crm-section h2 { margin: 0 0 18px; line-height: 1.2; }\n.personal-crm-section input[type="search"] { width: 100%; margin: 0 0 22px; }\n.personal-crm-contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }\n.personal-crm-contact-card { border: 1px solid var(--background-modifier-border); border-radius: 14px; padding: 18px; background: var(--background-primary); min-width: 0; }\n.personal-crm-contact-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; margin-bottom: 14px; }\n.personal-crm-contact-header .personal-crm-card-link { flex: 1 1 145px; min-width: 0; overflow-wrap: anywhere; white-space: normal; }\n.personal-crm-card-link { display: block; width: auto; border: 0 !important; padding: 0 !important; margin: 0; background: transparent !important; box-shadow: none !important; color: var(--text-accent); font-size: 1.1rem; font-weight: var(--font-semibold); line-height: 1.35; text-align: left; cursor: pointer; }\n.personal-crm-chip { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; font-size: var(--font-ui-smaller); background: var(--background-modifier-hover); }\n.personal-crm-chip.is-conflict { background: rgba(var(--color-red-rgb), .18); color: var(--color-red); }\n.personal-crm-detail-summary, .personal-crm-detail-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }\n.personal-crm-detail-summary { margin-bottom: 18px; color: var(--text-muted); }\n.personal-crm-detail-fields { display: grid; gap: 9px; padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 12px; background: var(--background-secondary); }\n.personal-crm-detail-row strong { min-width: 118px; color: var(--text-muted); }\n.personal-crm-modal pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 14px; border-radius: 10px; background: var(--background-secondary); }\n.personal-crm-modal .modal-content { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }\n@media (max-width: 700px) { .personal-crm-dashboard { padding: 14px; } .personal-crm-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .personal-crm-hero h1 { font-size: 2.2rem; } .personal-crm-contact-grid { grid-template-columns: 1fr; } .personal-crm-section { padding: 18px; margin-bottom: 20px; } }\n';
+var styles_default = '.personal-crm-dashboard { --crm-accent: var(--interactive-accent); overflow-y: auto; padding: clamp(22px, 4vw, 52px); }\n.personal-crm-hero, .personal-crm-section { max-width: 1180px; margin: 0 auto 28px; }\n.personal-crm-hero { border: 1px solid var(--background-modifier-border); border-radius: 22px; padding: clamp(22px, 5vw, 48px); background: linear-gradient(135deg, var(--background-secondary), rgba(var(--interactive-accent-rgb), .12)); }\n.personal-crm-kicker { color: var(--crm-accent); font-size: var(--font-ui-small); font-weight: var(--font-semibold); letter-spacing: .14em; }\n.personal-crm-hero h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .25rem 0; letter-spacing: -.04em; }\n.personal-crm-hero p { color: var(--text-muted); max-width: 680px; }\n.personal-crm-actions, .personal-crm-card-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }\n.personal-crm-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 1180px; margin: 0 auto 24px; }\n.personal-crm-metric { border: 1px solid var(--background-modifier-border); border-radius: 16px; padding: 18px; background: var(--background-secondary); }\n.personal-crm-metric strong, .personal-crm-metric span { display: block; } .personal-crm-metric strong { font-size: 1.8rem; }\n.personal-crm-metric span, .personal-crm-muted { color: var(--text-muted); }\n.personal-crm-section { border: 1px solid var(--background-modifier-border); border-radius: 18px; padding: clamp(22px, 3vw, 30px); background: var(--background-secondary); }\n.personal-crm-section h2 { margin: 0 0 18px; line-height: 1.2; }\n.personal-crm-section input[type="search"] { width: 100%; margin: 0 0 22px; }\n.personal-crm-contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }\n.personal-crm-contact-card { border: 1px solid var(--background-modifier-border); border-radius: 14px; padding: 18px; background: var(--background-primary); min-width: 0; }\n.personal-crm-contact-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; margin-bottom: 14px; }\n.personal-crm-contact-header .personal-crm-card-link { flex: 1 1 145px; min-width: 0; overflow-wrap: anywhere; white-space: normal; }\n.personal-crm-card-link { display: block; width: auto; border: 0 !important; padding: 0 !important; margin: 0; background: transparent !important; box-shadow: none !important; color: var(--text-accent); font-size: 1.1rem; font-weight: var(--font-semibold); line-height: 1.35; text-align: left; cursor: pointer; }\n.personal-crm-chip { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; font-size: var(--font-ui-smaller); background: var(--background-modifier-hover); }\n.personal-crm-chip.is-conflict { background: rgba(var(--color-red-rgb), .18); color: var(--color-red); }\n.personal-crm-detail-summary, .personal-crm-detail-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }\n.personal-crm-detail-summary { margin-bottom: 18px; color: var(--text-muted); }\n.personal-crm-detail-fields { display: grid; gap: 9px; padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 12px; background: var(--background-secondary); }\n.personal-crm-detail-row strong { min-width: 118px; color: var(--text-muted); }\n.personal-crm-modal pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 14px; border-radius: 10px; background: var(--background-secondary); }\n.personal-crm-table-wrap { overflow-x: auto; border: 1px solid var(--background-modifier-border); border-radius: 12px; }\n.personal-crm-contact-table { width: 100%; min-width: 760px; border-collapse: collapse; }\n.personal-crm-contact-table th, .personal-crm-contact-table td { padding: 11px 13px; border-bottom: 1px solid var(--background-modifier-border); text-align: left; vertical-align: middle; }\n.personal-crm-contact-table thead th { background: var(--background-primary-alt); color: var(--text-muted); font-size: var(--font-ui-small); font-weight: var(--font-semibold); }\n.personal-crm-contact-table tbody tr:hover { background: var(--background-modifier-hover); }\n.personal-crm-sort-button { border: 0; padding: 0; background: transparent; color: inherit; font-weight: inherit; cursor: pointer; }\n.personal-crm-contact-table input { width: 100%; min-width: 95px; font-size: var(--font-ui-smaller); }\n.personal-crm-table-link { border: 0; padding: 0; background: transparent; color: var(--text-accent); font-weight: var(--font-semibold); cursor: pointer; text-align: left; }\n.personal-crm-modal .modal-content { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }\n@media (max-width: 700px) { .personal-crm-dashboard { padding: 14px; } .personal-crm-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .personal-crm-hero h1 { font-size: 2.2rem; } .personal-crm-contact-grid { grid-template-columns: 1fr; } .personal-crm-section { padding: 18px; margin-bottom: 20px; } }\n';
 
 // src/main.ts
 var PersonalCrmPlugin = class extends import_obsidian7.Plugin {

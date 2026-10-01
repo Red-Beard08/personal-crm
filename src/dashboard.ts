@@ -35,25 +35,19 @@ export class PersonalCrmView extends ItemView {
     });
     const section = el.createDiv("personal-crm-section");
     section.createEl("h2", { text: "People" });
-    const search = section.createEl("input", { type: "search", placeholder: "Search contacts…" });
-    const grid = section.createDiv("personal-crm-contact-grid");
-    const draw = () => {
-      grid.empty();
-      const query = search.value.toLowerCase();
-      contacts.filter(c => !query || `${c.displayName} ${c.organization} ${c.relationshipType} ${c.tags.join(" ")}`.toLowerCase().includes(query)).forEach(contact => {
-        const card = grid.createDiv("personal-crm-contact-card");
-        const header = card.createDiv("personal-crm-contact-header");
-        const title = header.createEl("button", { text: contact.displayName, cls: "personal-crm-card-link" });
-        title.onclick = () => this.plugin.openContact(contact);
-        header.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` });
-        card.createEl("p", { text: [contact.organization, contact.relationshipType, contact.church].filter(Boolean).join(" · ") || "No relationship details yet" });
-        if (contact.status || contact.cadenceDays || contact.preferredContactMethod || contact.tags.length) card.createEl("small", { text: [contact.status, contact.cadenceDays ? `Every ${contact.cadenceDays} days` : "", contact.preferredContactMethod, ...contact.tags].filter(Boolean).join(" · "), cls: "personal-crm-contact-meta" });
-        const row = card.createDiv("personal-crm-card-actions");
-        new ButtonComponent(row).setButtonText("Open note").onClick(() => this.plugin.openFile(contact.path));
-        if (contact.prayerEnabled) new ButtonComponent(row).setButtonText("Prayer enabled").onClick(() => void this.plugin.openPrayerPeople());
-      });
-      if (!grid.children.length) grid.createEl("p", { text: "No CRM contacts yet. Import from iCloud or create a local workspace note." });
-    };
+    const toolbar = section.createDiv("personal-crm-table-toolbar");
+    const search = toolbar.createEl("input", { type: "search", placeholder: "Search all people…" });
+    const tableWrap = section.createDiv("personal-crm-table-wrap");
+    const table = tableWrap.createEl("table", { cls: "personal-crm-contact-table" });
+    const columns = [{ key: "displayName", label: "Name" }, { key: "relationshipType", label: "Relationship" }, { key: "church", label: "Church" }, { key: "status", label: "Status" }, { key: "cadenceDays", label: "Cadence" }, { key: "syncState", label: "Sync" }] as const;
+    const filters: Record<string, string> = {};
+    let sortKey: typeof columns[number]["key"] = "displayName"; let descending = false;
+    const head = table.createTHead(); const headerRow = head.insertRow(); const filterRow = head.insertRow();
+    const valueFor = (contact: typeof contacts[number], key: typeof columns[number]["key"]): string => key === "cadenceDays" ? (contact.cadenceDays ? `${contact.cadenceDays} days` : "") : String(contact[key] ?? "");
+    columns.forEach(column => { const cell = headerRow.insertCell(); const sort = cell.createEl("button", { text: column.label, cls: "personal-crm-sort-button" }); sort.onclick = () => { if (sortKey === column.key) descending = !descending; else { sortKey = column.key; descending = false; } draw(); }; const filterCell = filterRow.insertCell(); const input = filterCell.createEl("input", { type: "search", placeholder: `Filter ${column.label.toLowerCase()}…` }); input.oninput = () => { filters[column.key] = input.value.toLowerCase(); draw(); }; });
+    headerRow.insertCell().setText("Actions"); filterRow.insertCell();
+    const body = table.createTBody();
+    const draw = () => { body.empty(); const query = search.value.toLowerCase(); const visible = contacts.filter(contact => { const all = `${contact.displayName} ${contact.organization} ${contact.relationshipType} ${contact.church} ${contact.tags.join(" ")}`.toLowerCase(); return (!query || all.includes(query)) && columns.every(column => !filters[column.key] || valueFor(contact, column.key).toLowerCase().includes(filters[column.key])); }).sort((a, b) => { const left = valueFor(a, sortKey).toLowerCase(); const right = valueFor(b, sortKey).toLowerCase(); return (left.localeCompare(right, undefined, { numeric: true }) || a.displayName.localeCompare(b.displayName)) * (descending ? -1 : 1); }); visible.forEach(contact => { const row = body.insertRow(); const nameCell = row.insertCell(); const link = nameCell.createEl("button", { text: contact.displayName, cls: "personal-crm-table-link" }); link.onclick = () => this.plugin.openContact(contact); row.insertCell().setText(contact.relationshipType || "—"); row.insertCell().setText(contact.church || contact.organization || "—"); row.insertCell().setText(contact.status || "—"); row.insertCell().setText(contact.cadenceDays ? `${contact.cadenceDays} days` : "—"); const syncCell = row.insertCell(); syncCell.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` }); const actions = row.insertCell(); new ButtonComponent(actions).setButtonText("Open").onClick(() => this.plugin.openFile(contact.path)); }); if (!visible.length) { const row = body.insertRow(); const cell = row.insertCell(); cell.colSpan = columns.length + 1; cell.setText("No CRM contacts match these filters."); } };
     search.oninput = draw;
     draw();
   }
