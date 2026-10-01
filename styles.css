@@ -19,5 +19,10 @@
 .personal-crm-card-link { border: 0; padding: 0; background: transparent; color: var(--text-accent); font-size: 1.1rem; font-weight: var(--font-semibold); cursor: pointer; }
 .personal-crm-chip { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; font-size: var(--font-ui-smaller); background: var(--background-modifier-hover); }
 .personal-crm-chip.is-conflict { background: rgba(var(--color-red-rgb), .18); color: var(--color-red); }
+.personal-crm-detail-summary, .personal-crm-detail-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.personal-crm-detail-summary { margin-bottom: 18px; color: var(--text-muted); }
+.personal-crm-detail-fields { display: grid; gap: 9px; padding: 16px; border: 1px solid var(--background-modifier-border); border-radius: 12px; background: var(--background-secondary); }
+.personal-crm-detail-row strong { min-width: 118px; color: var(--text-muted); }
+.personal-crm-modal pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 14px; border-radius: 10px; background: var(--background-secondary); }
 .personal-crm-modal .modal-content { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
 @media (max-width: 700px) { .personal-crm-dashboard { padding: 14px; } .personal-crm-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .personal-crm-hero h1 { font-size: 2.2rem; } .personal-crm-contact-grid { grid-template-columns: 1fr; } .personal-crm-section { padding: 18px; margin-bottom: 20px; } }
