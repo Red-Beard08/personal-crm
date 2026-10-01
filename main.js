@@ -185,7 +185,8 @@ var PersonalCrmView = class extends import_obsidian2.ItemView {
         const title = header.createEl("button", { text: contact.displayName, cls: "personal-crm-card-link" });
         title.onclick = () => this.plugin.openContact(contact);
         header.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` });
-        card.createEl("p", { text: [contact.organization, contact.relationshipType].filter(Boolean).join(" \xB7 ") || "No relationship details yet" });
+        card.createEl("p", { text: [contact.organization, contact.relationshipType, contact.church].filter(Boolean).join(" \xB7 ") || "No relationship details yet" });
+        if (contact.status || contact.cadenceDays) card.createEl("small", { text: [contact.status, contact.cadenceDays ? `Every ${contact.cadenceDays} days` : ""].filter(Boolean).join(" \xB7 "), cls: "personal-crm-contact-meta" });
         const row = card.createDiv("personal-crm-card-actions");
         new import_obsidian2.ButtonComponent(row).setButtonText("Open note").onClick(() => this.plugin.openFile(contact.path));
         if (contact.prayerEnabled) new import_obsidian2.ButtonComponent(row).setButtonText("Prayer enabled").onClick(() => void this.plugin.openPrayerPeople());
@@ -309,6 +310,16 @@ function yamlQuote(value) {
 // src/repository.ts
 var START = "<!-- red-beard:personal-crm:start -->";
 var END = "<!-- red-beard:personal-crm:end -->";
+function legacyCrmFields(notes) {
+  const match = notes.match(/---\s*REDOS CRM START\s*---([\s\S]*?)---\s*REDOS CRM END\s*---/i);
+  if (!match) return { relationshipType: "", status: "", church: "", cadenceDays: null };
+  const value = (label) => {
+    var _a, _b;
+    return ((_b = (_a = match[1].match(new RegExp(`^${label}:\\s*(.*)$`, "im"))) == null ? void 0 : _a[1]) != null ? _b : "").trim();
+  };
+  const cadence = Number(value("Cadence Days"));
+  return { relationshipType: value("Relationship Type"), status: value("Status"), church: value("Church"), cadenceDays: Number.isFinite(cadence) && cadence > 0 ? cadence : null };
+}
 var ContactRepository = class {
   constructor(app, settings) {
     this.app = app;
@@ -331,9 +342,11 @@ var ContactRepository = class {
     return this.files().map((file) => this.fromFile(file)).filter(Boolean).sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
   fromFile(file) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
     const f = this.fm(file);
-    return { id: String((_b = (_a = f.contact_id) != null ? _a : f.id) != null ? _b : file.basename), displayName: String((_d = (_c = f.display_name) != null ? _c : f.name) != null ? _d : file.basename), givenName: String((_e = f.given_name) != null ? _e : ""), familyName: String((_f = f.family_name) != null ? _f : ""), emails: listValue(f.emails), phones: listValue(f.phones), organization: String((_g = f.organization) != null ? _g : ""), addresses: listValue(f.addresses), websites: listValue(f.websites), birthday: String((_h = f.birthday) != null ? _h : ""), notes: String((_i = f.icloud_notes) != null ? _i : ""), icloudUid: String((_j = f.icloud_uid) != null ? _j : ""), href: String((_k = f.icloud_href) != null ? _k : ""), etag: String((_l = f.icloud_etag) != null ? _l : ""), syncState: String((_m = f.sync_state) != null ? _m : "new-in-icloud"), recordState: String((_n = f.record_state) != null ? _n : "active") === "inactive" ? "inactive" : "active", relationshipType: String((_o = f.relationship_type) != null ? _o : ""), tags: listValue(f.tags), prayerEnabled: f.prayer_enabled === true || String(f.prayer_enabled).toLowerCase() === "true", prayerCategories: listValue(f.prayer_categories), cadenceDays: f.cadence_days == null || f.cadence_days === "" ? null : Number(f.cadence_days), nextContactAt: String((_p = f.next_contact_at) != null ? _p : ""), path: file.path };
+    const notes = String((_a = f.icloud_notes) != null ? _a : "");
+    const legacy = legacyCrmFields(notes);
+    return { id: String((_c = (_b = f.contact_id) != null ? _b : f.id) != null ? _c : file.basename), displayName: String((_e = (_d = f.display_name) != null ? _d : f.name) != null ? _e : file.basename), givenName: String((_f = f.given_name) != null ? _f : ""), familyName: String((_g = f.family_name) != null ? _g : ""), emails: listValue(f.emails), phones: listValue(f.phones), organization: String((_h = f.organization) != null ? _h : ""), addresses: listValue(f.addresses), websites: listValue(f.websites), birthday: String((_i = f.birthday) != null ? _i : ""), notes, icloudUid: String((_j = f.icloud_uid) != null ? _j : ""), href: String((_k = f.icloud_href) != null ? _k : ""), etag: String((_l = f.icloud_etag) != null ? _l : ""), syncState: String((_m = f.sync_state) != null ? _m : "new-in-icloud"), recordState: String((_n = f.record_state) != null ? _n : "active") === "inactive" ? "inactive" : "active", relationshipType: String((_o = f.relationship_type) != null ? _o : legacy.relationshipType), status: String((_p = f.status) != null ? _p : legacy.status), church: String((_q = f.church) != null ? _q : legacy.church), tags: listValue(f.tags), prayerEnabled: f.prayer_enabled === true || String(f.prayer_enabled).toLowerCase() === "true", prayerCategories: listValue(f.prayer_categories), cadenceDays: f.cadence_days == null || f.cadence_days === "" ? legacy.cadenceDays : Number(f.cadence_days), nextContactAt: String((_r = f.next_contact_at) != null ? _r : ""), path: file.path };
   }
   async initialize() {
     for (const folder of [this.root, this.settings.contactsFolder, this.settings.householdsFolder, this.settings.interactionsFolder, this.settings.reportsFolder, this.settings.syncFolder]) await this.ensureFolder(folder);
@@ -352,7 +365,7 @@ var ContactRepository = class {
     const id = `CRM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     const path = (0, import_obsidian5.normalizePath)(`${cleanPath(this.settings.contactsFolder, `${this.root}/Contacts`)}/${safeName(displayName)}.md`);
     const unique = this.app.vault.getAbstractFileByPath(path) ? `${path.replace(/\.md$/, "")} ${Date.now()}.md` : path;
-    return this.app.vault.create(unique, this.note({ id, displayName, syncState: "changed-locally", recordState: "active", icloudUid: "", href: "", etag: "", givenName: "", familyName: "", emails: [], phones: [], organization: "", addresses: [], websites: [], birthday: "", notes: "", relationshipType: "", tags: [], prayerEnabled: false, prayerCategories: [], cadenceDays: null, nextContactAt: "", path: unique }));
+    return this.app.vault.create(unique, this.note({ id, displayName, syncState: "changed-locally", recordState: "active", icloudUid: "", href: "", etag: "", givenName: "", familyName: "", emails: [], phones: [], organization: "", addresses: [], websites: [], birthday: "", notes: "", relationshipType: "", status: "", church: "", tags: [], prayerEnabled: false, prayerCategories: [], cadenceDays: null, nextContactAt: "", path: unique }));
   }
   managedBlock(c) {
     var _a, _b, _c;
@@ -371,9 +384,9 @@ ${block}
 `;
   }
   note(c) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     const now = isoNow();
-    return ["---", "type: personal-crm-contact", "schema_version: 1", `contact_id: ${yamlQuote(c.id)}`, `display_name: ${yamlQuote(c.displayName)}`, `given_name: ${yamlQuote((_a = c.givenName) != null ? _a : "")}`, `family_name: ${yamlQuote((_b = c.familyName) != null ? _b : "")}`, `icloud_uid: ${yamlQuote((_c = c.icloudUid) != null ? _c : "")}`, `icloud_href: ${yamlQuote((_d = c.href) != null ? _d : "")}`, `icloud_etag: ${yamlQuote((_e = c.etag) != null ? _e : "")}`, `sync_state: ${yamlQuote((_f = c.syncState) != null ? _f : "changed-locally")}`, `record_state: ${yamlQuote((_g = c.recordState) != null ? _g : "active")}`, `relationship_type: ${yamlQuote((_h = c.relationshipType) != null ? _h : "")}`, `prayer_enabled: ${c.prayerEnabled === true}`, `prayer_categories: []`, `cadence_days: ${(_i = c.cadenceDays) != null ? _i : "null"}`, `next_contact_at: ${yamlQuote((_j = c.nextContactAt) != null ? _j : "")}`, `created: ${yamlQuote(now)}`, `updated: ${yamlQuote(now)}`, "---", "", `# ${c.displayName}`, "", this.managedBlock(c), "", "## Relationship notes", "", "## Interactions", "", "## Follow-ups", ""].join("\n");
+    return ["---", "type: personal-crm-contact", "schema_version: 1", `contact_id: ${yamlQuote(c.id)}`, `display_name: ${yamlQuote(c.displayName)}`, `given_name: ${yamlQuote((_a = c.givenName) != null ? _a : "")}`, `family_name: ${yamlQuote((_b = c.familyName) != null ? _b : "")}`, `icloud_uid: ${yamlQuote((_c = c.icloudUid) != null ? _c : "")}`, `icloud_href: ${yamlQuote((_d = c.href) != null ? _d : "")}`, `icloud_etag: ${yamlQuote((_e = c.etag) != null ? _e : "")}`, `sync_state: ${yamlQuote((_f = c.syncState) != null ? _f : "changed-locally")}`, `record_state: ${yamlQuote((_g = c.recordState) != null ? _g : "active")}`, `relationship_type: ${yamlQuote((_h = c.relationshipType) != null ? _h : "")}`, `status: ${yamlQuote((_i = c.status) != null ? _i : "")}`, `church: ${yamlQuote((_j = c.church) != null ? _j : "")}`, `prayer_enabled: ${c.prayerEnabled === true}`, `prayer_categories: []`, `cadence_days: ${(_k = c.cadenceDays) != null ? _k : "null"}`, `next_contact_at: ${yamlQuote((_l = c.nextContactAt) != null ? _l : "")}`, `created: ${yamlQuote(now)}`, `updated: ${yamlQuote(now)}`, "---", "", `# ${c.displayName}`, "", this.managedBlock(c), "", "## Relationship notes", "", "## Interactions", "", "## Follow-ups", ""].join("\n");
   }
   async syncReadOnly() {
     var _a;
@@ -427,7 +440,8 @@ ${block}
     let path = base;
     let index = 2;
     while (this.app.vault.getAbstractFileByPath(path)) path = (0, import_obsidian5.normalizePath)(`${folder}/${safeName(card.displayName)} ${index++}.md`);
-    await this.app.vault.create(path, this.note({ id: `CRM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, displayName: card.displayName, givenName: card.givenName, familyName: card.familyName, emails: card.emails, phones: card.phones, organization: card.organization, addresses: card.addresses, websites: card.websites, birthday: card.birthday, notes: card.notes, icloudUid: card.uid, href: resource.href, etag: resource.etag, syncState: "in-sync", recordState: "active", relationshipType: "", tags: [], prayerEnabled: false, prayerCategories: [], cadenceDays: null, nextContactAt: "", path }));
+    const legacy = legacyCrmFields(card.notes);
+    await this.app.vault.create(path, this.note({ id: `CRM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, displayName: card.displayName, givenName: card.givenName, familyName: card.familyName, emails: card.emails, phones: card.phones, organization: card.organization, addresses: card.addresses, websites: card.websites, birthday: card.birthday, notes: card.notes, icloudUid: card.uid, href: resource.href, etag: resource.etag, syncState: "in-sync", recordState: "active", relationshipType: legacy.relationshipType, status: legacy.status, church: legacy.church, tags: [], prayerEnabled: false, prayerCategories: [], cadenceDays: legacy.cadenceDays, nextContactAt: "", path }));
   }
   async updateFromCard(contact, card, href, etag, state) {
     const file = this.app.vault.getAbstractFileByPath(contact.path);

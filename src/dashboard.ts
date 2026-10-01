@@ -46,7 +46,8 @@ export class PersonalCrmView extends ItemView {
         const title = header.createEl("button", { text: contact.displayName, cls: "personal-crm-card-link" });
         title.onclick = () => this.plugin.openContact(contact);
         header.createEl("span", { text: contact.syncState, cls: `personal-crm-chip is-${contact.syncState}` });
-        card.createEl("p", { text: [contact.organization, contact.relationshipType].filter(Boolean).join(" · ") || "No relationship details yet" });
+        card.createEl("p", { text: [contact.organization, contact.relationshipType, contact.church].filter(Boolean).join(" · ") || "No relationship details yet" });
+        if (contact.status || contact.cadenceDays) card.createEl("small", { text: [contact.status, contact.cadenceDays ? `Every ${contact.cadenceDays} days` : ""].filter(Boolean).join(" · "), cls: "personal-crm-contact-meta" });
         const row = card.createDiv("personal-crm-card-actions");
         new ButtonComponent(row).setButtonText("Open note").onClick(() => this.plugin.openFile(contact.path));
         if (contact.prayerEnabled) new ButtonComponent(row).setButtonText("Prayer enabled").onClick(() => void this.plugin.openPrayerPeople());
