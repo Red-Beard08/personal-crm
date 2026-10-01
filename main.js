@@ -313,10 +313,26 @@ var ContactRepository = class {
     const unique = this.app.vault.getAbstractFileByPath(path) ? `${path.replace(/\.md$/, "")} ${Date.now()}.md` : path;
     return this.app.vault.create(unique, this.note({ id, displayName, syncState: "changed-locally", recordState: "active", icloudUid: "", href: "", etag: "", givenName: "", familyName: "", emails: [], phones: [], organization: "", addresses: [], websites: [], birthday: "", notes: "", relationshipType: "", tags: [], prayerEnabled: false, prayerCategories: [], cadenceDays: null, nextContactAt: "", path: unique }));
   }
+  managedBlock(c) {
+    var _a, _b, _c;
+    return [START, "## iCloud snapshot", "", `- Name: ${c.displayName}`, `- Email: ${((_a = c.emails) != null ? _a : []).join(", ") || "None"}`, `- Phone: ${((_b = c.phones) != null ? _b : []).join(", ") || "None"}`, `- Organization: ${c.organization || "None"}`, `- Birthday: ${c.birthday || "None"}`, `- Sync state: ${(_c = c.syncState) != null ? _c : "changed-locally"}`, "", "### iCloud Notes", "", c.notes || "_No iCloud Notes content._", END].join("\n");
+  }
+  replaceManagedBlock(content, block) {
+    const start = content.indexOf(START);
+    const end = content.indexOf(END);
+    if (start >= 0 && end > start) return `${content.slice(0, start)}${block}${content.slice(end + END.length)}`;
+    const anchor = content.indexOf("\n## Relationship notes");
+    return anchor >= 0 ? `${content.slice(0, anchor)}
+
+${block}${content.slice(anchor)}` : `${content.trimEnd()}
+
+${block}
+`;
+  }
   note(c) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     const now = isoNow();
-    return ["---", "type: personal-crm-contact", "schema_version: 1", `contact_id: ${yamlQuote(c.id)}`, `display_name: ${yamlQuote(c.displayName)}`, `given_name: ${yamlQuote((_a = c.givenName) != null ? _a : "")}`, `family_name: ${yamlQuote((_b = c.familyName) != null ? _b : "")}`, `icloud_uid: ${yamlQuote((_c = c.icloudUid) != null ? _c : "")}`, `icloud_href: ${yamlQuote((_d = c.href) != null ? _d : "")}`, `icloud_etag: ${yamlQuote((_e = c.etag) != null ? _e : "")}`, `sync_state: ${yamlQuote((_f = c.syncState) != null ? _f : "changed-locally")}`, `record_state: ${yamlQuote((_g = c.recordState) != null ? _g : "active")}`, `relationship_type: ${yamlQuote((_h = c.relationshipType) != null ? _h : "")}`, `prayer_enabled: ${c.prayerEnabled === true}`, `prayer_categories: []`, `cadence_days: ${(_i = c.cadenceDays) != null ? _i : "null"}`, `next_contact_at: ${yamlQuote((_j = c.nextContactAt) != null ? _j : "")}`, `created: ${yamlQuote(now)}`, `updated: ${yamlQuote(now)}`, "---", "", `# ${c.displayName}`, "", START, "## iCloud snapshot", "", `- Name: ${c.displayName}`, `- Email: ${((_k = c.emails) != null ? _k : []).join(", ") || "None"}`, `- Phone: ${((_l = c.phones) != null ? _l : []).join(", ") || "None"}`, `- Organization: ${c.organization || "None"}`, `- Sync state: ${(_m = c.syncState) != null ? _m : "changed-locally"}`, END, "", "## Relationship notes", "", "## Interactions", "", "## Follow-ups", ""].join("\n");
+    return ["---", "type: personal-crm-contact", "schema_version: 1", `contact_id: ${yamlQuote(c.id)}`, `display_name: ${yamlQuote(c.displayName)}`, `given_name: ${yamlQuote((_a = c.givenName) != null ? _a : "")}`, `family_name: ${yamlQuote((_b = c.familyName) != null ? _b : "")}`, `icloud_uid: ${yamlQuote((_c = c.icloudUid) != null ? _c : "")}`, `icloud_href: ${yamlQuote((_d = c.href) != null ? _d : "")}`, `icloud_etag: ${yamlQuote((_e = c.etag) != null ? _e : "")}`, `sync_state: ${yamlQuote((_f = c.syncState) != null ? _f : "changed-locally")}`, `record_state: ${yamlQuote((_g = c.recordState) != null ? _g : "active")}`, `relationship_type: ${yamlQuote((_h = c.relationshipType) != null ? _h : "")}`, `prayer_enabled: ${c.prayerEnabled === true}`, `prayer_categories: []`, `cadence_days: ${(_i = c.cadenceDays) != null ? _i : "null"}`, `next_contact_at: ${yamlQuote((_j = c.nextContactAt) != null ? _j : "")}`, `created: ${yamlQuote(now)}`, `updated: ${yamlQuote(now)}`, "---", "", `# ${c.displayName}`, "", this.managedBlock(c), "", "## Relationship notes", "", "## Interactions", "", "## Follow-ups", ""].join("\n");
   }
   async syncReadOnly() {
     var _a;
@@ -361,7 +377,12 @@ var ContactRepository = class {
     return { imported, updated, conflicts, missing, failed, addressBooks: [] };
   }
   async importCard(card, resource) {
-    await this.app.vault.create((0, import_obsidian5.normalizePath)(`${cleanPath(this.settings.contactsFolder, `${this.root}/Contacts`)}/${safeName(card.displayName)}.md`), this.note({ id: `CRM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, displayName: card.displayName, givenName: card.givenName, familyName: card.familyName, emails: card.emails, phones: card.phones, organization: card.organization, addresses: card.addresses, websites: card.websites, birthday: card.birthday, notes: card.notes, icloudUid: card.uid, href: resource.href, etag: resource.etag, syncState: "in-sync", recordState: "active", relationshipType: "", tags: [], prayerEnabled: false, prayerCategories: [], cadenceDays: null, nextContactAt: "", path: "" }));
+    const folder = cleanPath(this.settings.contactsFolder, `${this.root}/Contacts`);
+    const base = (0, import_obsidian5.normalizePath)(`${folder}/${safeName(card.displayName)}.md`);
+    let path = base;
+    let index = 2;
+    while (this.app.vault.getAbstractFileByPath(path)) path = (0, import_obsidian5.normalizePath)(`${folder}/${safeName(card.displayName)} ${index++}.md`);
+    await this.app.vault.create(path, this.note({ id: `CRM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, displayName: card.displayName, givenName: card.givenName, familyName: card.familyName, emails: card.emails, phones: card.phones, organization: card.organization, addresses: card.addresses, websites: card.websites, birthday: card.birthday, notes: card.notes, icloudUid: card.uid, href: resource.href, etag: resource.etag, syncState: "in-sync", recordState: "active", relationshipType: "", tags: [], prayerEnabled: false, prayerCategories: [], cadenceDays: null, nextContactAt: "", path }));
   }
   async updateFromCard(contact, card, href, etag, state) {
     const file = this.app.vault.getAbstractFileByPath(contact.path);
@@ -384,6 +405,9 @@ var ContactRepository = class {
       fm.last_synced = isoNow();
       fm.updated = isoNow();
     });
+    const current = await this.app.vault.read(file);
+    const next = this.replaceManagedBlock(current, this.managedBlock({ displayName: card.displayName, emails: card.emails, phones: card.phones, organization: card.organization, birthday: card.birthday, notes: card.notes, syncState: state }));
+    if (next !== current) await this.app.vault.modify(file, next);
   }
   async setState(contact, state) {
     const file = this.app.vault.getAbstractFileByPath(contact.path);
