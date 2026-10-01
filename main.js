@@ -48,8 +48,7 @@ function firstTag(input, localName) {
   return (match == null ? void 0 : match[1]) ? xmlDecode(match[1]) : "";
 }
 function responseChunks(xml) {
-  var _a;
-  return (_a = xml.match(/<[^>]*:?response(?:\s[^>]*)?>[\s\S]*?<\/[^>]*:?response\s*>/gi)) != null ? _a : [];
+  return [...xml.matchAll(/<(?:[\w-]+:)?response\b[\s\S]*?<\/(?:[\w-]+:)?response\s*>/gi)].map((match) => match[0]);
 }
 function absoluteHref(href, baseUrl) {
   try {
@@ -76,9 +75,7 @@ function parseAddressBooks(xml, baseUrl) {
   const result = [];
   for (const chunk of responseChunks(xml)) {
     const href = firstTag(chunk, "href");
-    if (!href) continue;
-    const resourceType = firstTag(chunk, "resourcetype").toLowerCase();
-    if (resourceType && !resourceType.includes("addressbook")) continue;
+    if (!href || !/<(?:[\w-]+:)?addressbook\b/i.test(chunk)) continue;
     const label = firstTag(chunk, "displayname") || firstTag(chunk, "addressbook-description") || href;
     result.push({ href: absoluteHref(href, baseUrl), label });
   }

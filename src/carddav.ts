@@ -11,7 +11,7 @@ function xmlDecode(value: string): string {
 function unescape(value: string): string { return value.replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\").trim(); }
 function unfold(input: string): string[] { const lines = input.replace(/\r/g, "").split("\n"); const out: string[] = []; for (const line of lines) { if (/^[ \t]/.test(line) && out.length) out[out.length - 1] += line.slice(1); else out.push(line); } return out; }
 function firstTag(input: string, localName: string): string { const escaped = localName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); const match = input.match(new RegExp(`<[^>]*:?${escaped}[^>]*>([\\s\\S]*?)<\\/[^>]*:?${escaped}\\s*>`, "i")); return match?.[1] ? xmlDecode(match[1]) : ""; }
-function responseChunks(xml: string): string[] { return xml.match(/<[^>]*:?response(?:\s[^>]*)?>[\s\S]*?<\/[^>]*:?response\s*>/gi) ?? []; }
+function responseChunks(xml: string): string[] { return [...xml.matchAll(/<(?:[\w-]+:)?response\b[\s\S]*?<\/(?:[\w-]+:)?response\s*>/gi)].map(match => match[0]); }
 function absoluteHref(href: string, baseUrl: string): string { try { return new URL(href, baseUrl).toString(); } catch { return href; } }
 
 export function parseVCard(input: string): ParsedVCard {
@@ -22,7 +22,7 @@ export function parseVCard(input: string): ParsedVCard {
 }
 export function parseAddressBooks(xml: string, baseUrl: string): AddressBook[] {
   const result: AddressBook[] = [];
-  for (const chunk of responseChunks(xml)) { const href = firstTag(chunk, "href"); if (!href) continue; const resourceType = firstTag(chunk, "resourcetype").toLowerCase(); if (resourceType && !resourceType.includes("addressbook")) continue; const label = firstTag(chunk, "displayname") || firstTag(chunk, "addressbook-description") || href; result.push({ href: absoluteHref(href, baseUrl), label }); }
+  for (const chunk of responseChunks(xml)) { const href = firstTag(chunk, "href"); if (!href || !/<(?:[\w-]+:)?addressbook\b/i.test(chunk)) continue; const label = firstTag(chunk, "displayname") || firstTag(chunk, "addressbook-description") || href; result.push({ href: absoluteHref(href, baseUrl), label }); }
   return [...new Map(result.map(item => [item.href, item])).values()];
 }
 async function propfind(url: string, settings: ContactSettings, body: string, depth: "0" | "1"): Promise<string> { const response = await requestUrl({ url, method: "PROPFIND", headers: { ...authHeaders(settings), Depth: depth, "Content-Type": "application/xml; charset=utf-8", Accept: "application/xml, text/xml" }, body }); return response.text; }
