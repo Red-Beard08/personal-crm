@@ -528,6 +528,36 @@ var PersonalCrmSettingsTab = class extends import_obsidian6.PluginSettingTab {
     });
   }
 };
+var AddressBookPickerModal = class extends import_obsidian6.Modal {
+  constructor(app, plugin, books) {
+    super(app);
+    this.plugin = plugin;
+    this.books = books;
+  }
+  onOpen() {
+    this.titleEl.setText("Choose iCloud address book");
+    this.contentEl.createEl("p", { text: "Select the address book Personal CRM should manage. Discovery found multiple collections; none was selected automatically." });
+    const list = this.contentEl.createDiv({ cls: "personal-crm-address-book-list" });
+    for (const book of this.books) {
+      const setting = new import_obsidian6.Setting(list).setName(book.label).setDesc(book.href);
+      setting.addButton((button) => {
+        button.setButtonText(book.href === this.plugin.settings.carddavAddressBookUrl ? "Selected" : "Use this book");
+        if (book.href !== this.plugin.settings.carddavAddressBookUrl) button.setCta();
+        button.onClick(async () => {
+          this.plugin.settings.carddavAddressBookUrl = book.href;
+          this.plugin.settings.carddavAddressBookLabel = book.label;
+          this.plugin.settings.selectedAddressBookUrls = [book.href];
+          await this.plugin.saveSettings();
+          new import_obsidian6.Notice(`Selected ${book.label}.`);
+          this.close();
+        });
+      });
+    }
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 
 // src/types.ts
 var DEFAULT_SETTINGS = { settingsVersion: 1, rootFolder: "Collections/Personal CRM", contactsFolder: "Collections/Personal CRM/Contacts", householdsFolder: "Collections/Personal CRM/Households", interactionsFolder: "Collections/Personal CRM/Interactions", reportsFolder: "Collections/Personal CRM/Reports", syncFolder: "Collections/Personal CRM/Sync", carddavUrl: "", carddavPrincipalUrl: "", carddavAddressBookUrl: "", carddavAddressBookLabel: "", selectedAddressBookUrls: [], username: "", appPassword: "", refreshHours: 0, scheduleEnabled: false, prayerEnabled: true, prayerCategories: ["Friends", "Church", "Family"], dashboardPath: "Collections/Personal CRM/Personal CRM Index.md", showPrivacyReminder: true };
@@ -627,10 +657,15 @@ var PersonalCrmPlugin = class extends import_obsidian7.Plugin {
         new import_obsidian7.Notice("No iCloud address books were discovered.");
         return;
       }
-      this.settings.carddavAddressBookUrl = books[0].href;
-      this.settings.carddavAddressBookLabel = books[0].label;
-      await this.saveSettings();
-      new import_obsidian7.Notice(`Discovered ${books.length} address book${books.length === 1 ? "" : "s"}; selected ${books[0].label}.`);
+      if (books.length === 1) {
+        this.settings.carddavAddressBookUrl = books[0].href;
+        this.settings.carddavAddressBookLabel = books[0].label;
+        this.settings.selectedAddressBookUrls = [books[0].href];
+        await this.saveSettings();
+        new import_obsidian7.Notice(`Discovered and selected ${books[0].label}.`);
+        return;
+      }
+      new AddressBookPickerModal(this.app, this, books).open();
     } catch (error) {
       new import_obsidian7.Notice(`Address-book discovery failed: ${error instanceof Error ? error.message : String(error)}`);
     }

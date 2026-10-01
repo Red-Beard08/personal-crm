@@ -1,4 +1,5 @@
-import { PluginSettingTab, Setting } from "obsidian";
+import { Modal, Notice, PluginSettingTab, Setting } from "obsidian";
+import type { AddressBook } from "./types";
 import type PersonalCrmPlugin from "./main";
 
 export class PersonalCrmSettingsTab extends PluginSettingTab {
@@ -21,4 +22,29 @@ export class PersonalCrmSettingsTab extends PluginSettingTab {
     e.createEl("p", { text: "Prayer Library remains the source of prayer records and daily selection.", cls: "personal-crm-muted" });
   }
   private text(parent: HTMLElement, name: string, desc: string, value: string, change: (value: string) => Promise<void>, password = false): void { new Setting(parent).setName(name).setDesc(desc).addText(t => { t.setValue(value); t.inputEl.type = password ? "password" : "text"; t.onChange(change); }); }
+}
+
+export class AddressBookPickerModal extends Modal {
+  constructor(app: import("obsidian").App, private plugin: PersonalCrmPlugin, private books: AddressBook[]) { super(app); }
+  onOpen(): void {
+    this.titleEl.setText("Choose iCloud address book");
+    this.contentEl.createEl("p", { text: "Select the address book Personal CRM should manage. Discovery found multiple collections; none was selected automatically." });
+    const list = this.contentEl.createDiv({ cls: "personal-crm-address-book-list" });
+    for (const book of this.books) {
+      const setting = new Setting(list).setName(book.label).setDesc(book.href);
+      setting.addButton(button => {
+        button.setButtonText(book.href === this.plugin.settings.carddavAddressBookUrl ? "Selected" : "Use this book");
+        if (book.href !== this.plugin.settings.carddavAddressBookUrl) button.setCta();
+        button.onClick(async () => {
+        this.plugin.settings.carddavAddressBookUrl = book.href;
+        this.plugin.settings.carddavAddressBookLabel = book.label;
+        this.plugin.settings.selectedAddressBookUrls = [book.href];
+        await this.plugin.saveSettings();
+        new Notice(`Selected ${book.label}.`);
+        this.close();
+        });
+      });
+    }
+  }
+  onClose(): void { this.contentEl.empty(); }
 }
